@@ -1,9 +1,20 @@
+/*
+ * camera.h
+ *
+ *  Created on: May 12, 2025
+ *      Author: USER
+ */
+
+#ifndef INC_CAMERA_H_
+#define INC_CAMERA_H_
 
 #include "main.h"
 #include "gpio.h"
-#include "tim.h"
 #include "usart.h"
 #include "i2c.h"
+#include "dcmi.h"
+#include "dma.h"
+
 /*===============================================================*/
 /*Write / Read Register Definition===============================*/
 #define OV7670_WRITE_ADDR 0x42
@@ -11,50 +22,51 @@
 
 
 /*===============================================================*/
-/*F103RB Pin Definition==========================================*/       
+/*F429zi Pin Definition==========================================*/
 
-#define OV7670_SCL_GPIO_Port      GPIOB         //should be set Pull-up
+#define OV7670_SCL_GPIO_Port      GPIOB        //should be set Pull-up
 #define OV7670_SCL_Pin            GPIO_PIN_6
-#define OV7670_SDA_GPIO_Port      GPIOB         //should be set Pull-up
-#define OV7670_SDA_Pin            GPIO_PIN_7
+#define OV7670_SDA_GPIO_Port      GPIOB        //should be set Pull-up
+#define OV7670_SDA_Pin            GPIO_PIN_9
 
-#define OV7670_VSYNC_GPIO_Port    GPIOC        //Indicating a start of a new frame
-#define OV7670_VSYNC_Pin          GPIO_PIN_5
-#define OV7670_HREF_GPIO_Port     GPIOB        //Indicating available pixel data in a line
-#define OV7670_HREF_Pin           GPIO_PIN_12 
-#define OV7670_PCLK_GPIO_Port     GPIOB        //Synchronizing data output
-#define OV7670_PCLK_Pin           GPIO_PIN_13
-#define OV7670_XCLK_GPIO_Port     GPIOA        //Requring 24MHz external clock signal
-#define OV7670_XCLK_Pin           GPIO_PIN_1
-#define OV7670_RESET_GPIO_Port    GPIOC
-#define OV7670_RESET_Pin          GPIO_PIN_11
+#define OV7670_VSYNC_GPIO_Port    GPIOG        //Indicating a start of a new frame
+#define OV7670_VSYNC_Pin          GPIO_PIN_9
+#define OV7670_HREF_GPIO_Port     GPIOA        //Indicating available pixel data in a line
+#define OV7670_HREF_Pin           GPIO_PIN_4
+#define OV7670_PCLK_GPIO_Port     GPIOA        //Synchronizing data output
+#define OV7670_PCLK_Pin           GPIO_PIN_6
+#define OV7670_XCLK_GPIO_Port     GPIOC        //Requring 24MHz external clock signal
+#define OV7670_XCLK_Pin           GPIO_PIN_9
+#define OV7670_RESET_GPIO_Port    GPIOE        //Active low reset
+#define OV7670_RESET_Pin          GPIO_PIN_10
+#define OV7670_PWDN_GPIO_Port     GPIOE        //Power down, active high
+#define OV7670_PWDN_Pin           GPIO_PIN_12
 
 /*===============================================================*/
-/*F103RB Data Pin Definition=====================================*/ 
-#define OV7670_D0_GPIO_Port       GPIOA
-#define OV7670_D0_Pin             GPIO_PIN_4
-#define OV7670_D1_GPIO_Port       GPIOB
-#define OV7670_D1_Pin             GPIO_PIN_3
-#define OV7670_D2_GPIO_Port       GPIOB
-#define OV7670_D2_Pin             GPIO_PIN_0
-#define OV7670_D3_GPIO_Port       GPIOA
-#define OV7670_D3_Pin             GPIO_PIN_10
-#define OV7670_D4_GPIO_Port       GPIOC
-#define OV7670_D4_Pin             GPIO_PIN_1
-#define OV7670_D5_GPIO_Port       GPIOA
-#define OV7670_D5_Pin             GPIO_PIN_2
-#define OV7670_D6_GPIO_Port       GPIOC
-#define OV7670_D6_Pin             GPIO_PIN_0
-#define OV7670_D7_GPIO_Port       GPIOA
-#define OV7670_D7_Pin             GPIO_PIN_3
-#define OV7670_PWDN_GPIO_Port     GPIOA
-#define OV7670_PWDN_Pin           GPIO_PIN_15
+/*F429ZI Data Pin Definition=====================================*/
+#define OV7670_D0_GPIO_Port       GPIOC        //DCMI D0
+#define OV7670_D0_Pin             GPIO_PIN_6
+#define OV7670_D1_GPIO_Port       GPIOC        //DCMI D1
+#define OV7670_D1_Pin             GPIO_PIN_7
+#define OV7670_D2_GPIO_Port       GPIOC        //DCMI D2
+#define OV7670_D2_Pin             GPIO_PIN_8
+#define OV7670_D3_GPIO_Port       GPIOE        //DCMI D3
+#define OV7670_D3_Pin             GPIO_PIN_1
+#define OV7670_D4_GPIO_Port       GPIOE        //DCMI D4
+#define OV7670_D4_Pin             GPIO_PIN_4
+#define OV7670_D5_GPIO_Port       GPIOD        //DCMI D5
+#define OV7670_D5_Pin             GPIO_PIN_3
+#define OV7670_D6_GPIO_Port       GPIOE        //DCMI D6
+#define OV7670_D6_Pin             GPIO_PIN_5
+#define OV7670_D7_GPIO_Port       GPIOE        //DCMI D7
+#define OV7670_D7_Pin             GPIO_PIN_6
+
 
 
 #define ENABLE  1
 #define DISABLE 0
-/*===============================================================*/ 
-/* OV7670 Register Definition====================================*/                                   
+/*===============================================================*/
+/* OV7670 Register Definition====================================*/
 /* For all Registers Enable/Disable, ENABLE=1 DISABLE=0==========*/
 /* Device slave addresses are 0x42 for write 0x43 for read=======*/
 /* RSVD can be ignored because it means That register is reserved*/
@@ -98,7 +110,7 @@
 #define REG_VPT                 0x26 //default D4 AGC/AEC Fast Mode Operating Region
 #define REG_BBIAS               0x27 //default 80 B Channel Signal Output bias (effective only when COM6[3] = 1)
 #define REG_GbBIAS              0x28 //default 80 Gb Channel Signal Output bias (effective only when COM6[3] = 1)
-#define REG_EXHCH               0x2A //default 00 Dummy Pixel Insert MSB 
+#define REG_EXHCH               0x2A //default 00 Dummy Pixel Insert MSB
 #define REG_EXHCL               0x2B //default 00 Dummy Pixel Insert LSB
 #define REG_RBIAS               0x2C //default 80 R Channel Signal Output bias (effective only when COM6[3] = 1)
 #define REG_ADVFL               0x2D //default 00 LSB of Insert Dummy Lines in Vertical Direction
@@ -153,10 +165,10 @@
 #define REG_AWBCTR2             0x6D //default 55 AWB Control 2
 #define REG_AWBCTR1             0x6E //default C0 AWB Control 1
 #define REG_AWBCTR0             0x6F //default 9A AWB Control 0
-#define REG_SCALING_XSC         0x70 //default 3A 
+#define REG_SCALING_XSC         0x70 //default 3A
 #define REG_SCALING_YSC         0x71 //default 35
 #define REG_SCALING_DCWCTR      0x72 //default 11 DCW Control
-#define REG_SCALING_PCLK_DIV    0x73 //default 00 Prescaler 
+#define REG_SCALING_PCLK_DIV    0x73 //default 00 Prescaler
 #define REG_REG74               0x74 //default 00 Register 74
 #define REG_REG75               0x75 //default 0F Register 75
 #define REG_REG76               0x76 //default 01 Register 76
@@ -170,7 +182,7 @@
 #define REG_GAM6                0x80 //default 44 Gamma Curve 6th Segment Input end Point 0x30 Output Value
 #define REG_GAM7                0x81 //default 52 Gamma Curve 7th Segment Input end Point 0x38 Output Value
 #define REG_GAM8                0x82 //default 60 Gamma Curve 8th Segment Input end Point 0x40 Output Value
-#define REG_GAM9                0x83 //default 6C Gamma Curve 9th Segment Input end Point 0x48 Output Value 
+#define REG_GAM9                0x83 //default 6C Gamma Curve 9th Segment Input end Point 0x48 Output Value
 #define REG_GAM10               0x84 //default 78 Gamma Curve 10th Segment Input end Point 0x50 Output Value
 #define REG_GAM11               0x85 //default 8C Gamma Curve 11th Segment Input end Point 0x60 Output Value
 #define REG_GAM12               0x86 //default 9E Gamma Curve 12th Segment Input end Point 0x70 Output Value
@@ -199,7 +211,7 @@
 #define REG_STR_R               0xAD //default 80 R Gain for LED Output Frame
 #define REG_STR_G               0xAE //default 80 G Gain for LED Output Frame
 #define REG_STR_B               0xAF //default 80 B Gain for LED Output Frame
-#define REG_ABLC1               0xB1 //default 00 
+#define REG_ABLC1               0xB1 //default 00
 #define REG_THL_ST              0xB3 //default 80 ABLC Target
 #define REG_THL_DLT             0xB5 //default 04 ABLC Stabl Range
 #define REG_AD_CHB              0xBE //default 00 Blue Channel Black Level Compensation
@@ -355,24 +367,81 @@ static const OV7670_Reg fmt_raw_rgb[] = {
     {REG_RGB444,         0x00}  // RGB444: Deactivation
 };
 
-/*===============================================================*/ 
-/*OV7670 Function Prototype Declaration==========================*/
-/*Initializing OV7670============================================*/
-void    OV7670_init(OV7670_Resolution res, OV7670_Format fmt);
-/*Reading data in buffer=========================================*/
-void    OV7670_ReadData(uint8_t *buffer, uint32_t length);
-/*Reading Register in OV7670=====================================*/
+/*===============================================================*/
+/* OV7670 Function Prototype Declaration =======================*/
+/**
+ * @brief Initializes the MCO to provide 24MHz clock for OV7670 XCLK.
+ * @param None
+ * @retval HAL_StatusTypeDef: HAL_OK if successful, else error code
+ */
+HAL_StatusTypeDef OV7670_MCO_Init(void);
+
+/**
+ * @brief Initializes the DCMI peripheral for OV7670 data capture.
+ * @param None
+ * @retval HAL_StatusTypeDef: HAL_OK if successful, else error code
+ */
+HAL_StatusTypeDef OV7670_DCMI_Init(void);
+
+/**
+ * @brief Initializes GPIO pins for OV7670 (VSYNC, HREF, PCLK, data pins, etc.).
+ * @param None
+ * @retval HAL_StatusTypeDef: HAL_OK if successful, else error code
+ */
+HAL_StatusTypeDef OV7670_DCMI_GPIO_Init(void);
+
+/**
+ * @brief Reads data from OV7670 via DCMI into the specified buffer.
+ * @param buffer Pointer to the buffer to store captured data
+ * @param row length of data to read (in bytes)
+ * @retval HAL_StatusTypeDef: HAL_OK if successful, else error code
+ */
+HAL_StatusTypeDef OV7670_ReadRow(uint8_t *buffer, uint32_t length); // Row 단위 캡처
+/**
+ * @brief Reads data from OV7670 via DCMI into the specified buffer.
+ * @param buffer Pointer to the buffer to store captured data
+ * @param length Length of data to read (in bytes)
+ * @retval HAL_StatusTypeDef: HAL_OK if successful, else error code
+ */
+HAL_StatusTypeDef OV7670_ReadData(uint8_t *buffer, uint32_t length);
+
+/**
+ * @brief Reads a register value from OV7670 via SCCB.
+ * @param reg Register address to read
+ * @retval uint8_t: Register value if successful, 0xFF on error
+ */
 uint8_t OV7670_ReadReg(uint8_t reg);
-/*Applying specific settings=====================================*/
-void    OV7670_ApplySettings(const OV7670_Reg *settings, uint32_t count);
-/*Writing value in register in OV7670=============================*/
-uint8_t OV7670_WriteReg(uint8_t reg, uint8_t value);
-/*Checking if OV7670 connected correctly=========================*/
-uint8_t OV7670_CheckID(void);
+
+/**
+ * @brief Writes a value to an OV7670 register via SCCB.
+ * @param reg Register address to write
+ * @param value Value to write
+ * @retval HAL_StatusTypeDef: HAL_OK if successful, else error code
+ */
+HAL_StatusTypeDef OV7670_WriteReg(uint8_t reg, uint8_t value);
+
+/**
+ * @brief Checks the OV7670 ID to verify communication.
+ * @param None
+ * @retval HAL_StatusTypeDef: HAL_OK if ID matches, else error code
+ */
+HAL_StatusTypeDef OV7670_CheckID(void);
+
+/**
+ * @brief Initializes the OV7670 camera module (reset, SCCB, resolution, format).
+ * @param None
+ * @retval HAL_StatusTypeDef: HAL_OK if successful, else error code
+ */
+HAL_StatusTypeDef OV7670_Init(void);
+
+/**
+ * @brief Tests OV7670 functionality (ID check, register read/write, etc.).
+ * @param None
+ * @retval HAL_StatusTypeDef: HAL_OK if all tests pass, else error code
+ */
+HAL_StatusTypeDef OV7670_Test(void);
 
 
-
-
-uint8_t test(void);
+#endif /* INC_CAMERA_H_ */
 
 
