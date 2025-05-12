@@ -3,6 +3,7 @@
 #include "gpio.h"
 #include "tim.h"
 #include "usart.h"
+#include "i2c.h"
 /*===============================================================*/
 /*Write / Read Register Definition===============================*/
 #define OV7670_WRITE_ADDR 0x42
@@ -21,12 +22,12 @@
 #define OV7670_VSYNC_Pin          GPIO_PIN_5
 #define OV7670_HREF_GPIO_Port     GPIOB        //Indicating available pixel data in a line
 #define OV7670_HREF_Pin           GPIO_PIN_12 
-#define OV7670_PLCK_GPIO_Port     GPIOB        //Synchronizing data output
+#define OV7670_PCLK_GPIO_Port     GPIOB        //Synchronizing data output
 #define OV7670_PCLK_Pin           GPIO_PIN_13
 #define OV7670_XCLK_GPIO_Port     GPIOA        //Requring 24MHz external clock signal
 #define OV7670_XCLK_Pin           GPIO_PIN_1
-#define OV7670_RESET_GPIO_Port
-#define OV7670_RESET_Pin
+#define OV7670_RESET_GPIO_Port    GPIOC
+#define OV7670_RESET_Pin          GPIO_PIN_11
 
 /*===============================================================*/
 /*F103RB Data Pin Definition=====================================*/ 
@@ -60,7 +61,7 @@
 #define REG_GAIN                0x00 //default 00 AGC-Gain control gain setting
 #define REG_BLUE                0x01 //default 80 AWB-Blue channel gain setting
 #define REG_RED                 0x02 //default 80 AWB-Red channel gain setting
-#define REG_VREF                0x03 //default 00 Vertical Frame Control
+#define REG_VREF                0x03 //default 00 Vertical frame control (VSTART/VSTOP low bits)
 #define REG_COM1                0x04 //default 00 Common Control 1
 #define REG_BAVE                0x05 //default 00 U/B Average Level
 #define REG_GbAVE               0x06 //default 00 Y/Gb Average Level
@@ -205,38 +206,173 @@
 #define REG_AD_CHR              0xBF //default 00 Red Channel Black Level Compensation
 #define REG_AD_CHGb             0xC0 //default 00 Gb Channel Black Level Compensation
 #define REG_AD_CHGr             0xC1 //default 00 Gr Channel Black Level Compensation
-#define REG_SATCTR              0xC9 //defulat C0 Saturation Control
+#define REG_SATCTR              0xC9 //default C0 Saturation Control
 
 /*===============================================================*/
-/*OV7670 register value macro*/
-#define
-#define
-#define
-#define
-#define
-#define
-#define
-#define
-#define
-#define
-#define
+/*OV7670 register value macro====================================*/
+/*1. Output Formats==============================================*/
+typedef enum
+{
+  RES_VGA,
+  RES_CIF,
+  RES_QVGA,
+  RES_QCIF
+}OV7670_Resolution;
 
+typedef enum {
+    FORMAT_RAW_RGB,
+    FORMAT_RGB565,
+    FORMAT_RGB555,
+    FORMAT_RGB444,
+    FORMAT_YUV422
+} OV7670_Format;
+
+typedef struct {
+    uint8_t reg;
+    uint8_t val;
+} OV7670_Reg;
+
+static const OV7670_Reg common_settings[] = {
+    {REG_COM7 , 0x80}, // SCCB reset
+    {REG_CLKRC, 0x80}, // CLKRC: 24MHz External Clock
+    {REG_COM8,  0xE7},  // COM8: AEC, AGC, AWB Activate
+    {REG_COM9,  0x48},  // COM9: AGC maximum 32x
+    {REG_AEW,   0x75},   // AEW: AEC upper limit
+    {REG_AEB,   0x63},   // AEB: AEC lower limit
+    {REG_VPT,   0xA3},   // VPT: AEC fast mode
+    {REG_MVFP,  0x00},  // MVFP: mirror/flip deactivation
+    {REG_COM10, 0x00}, // COM10: Default timing
+    {REG_REG76, 0xC0}, // REG76: White/Black pixel correction
+    {REG_LCC5,  0x01},  // LCC5: Lens Correction enable
+    {REG_LCC3,  0x50},  // LCC3: Lens Correction Coefficient
+    {REG_LCC4,  0x30},  // LCC4: Lens Correction Radius of circular
+
+    //Gamma Configuration
+    {REG_SLOP, 0x24},
+    {REG_GAM1, 0x04},
+    {REG_GAM2, 0x07},
+    {REG_GAM3, 0x10},
+    {REG_GAM4, 0x28},
+    {REG_GAM5, 0x36},
+    {REG_GAM6, 0x44},
+    {REG_GAM7, 0x52},
+    {REG_GAM8, 0x60},
+    {REG_GAM9, 0x6C},
+    {REG_GAM10, 0x78},
+    {REG_GAM11, 0x8C},
+    {REG_GAM12, 0x9E},
+    {REG_GAM13, 0xBB},
+    {REG_GAM14, 0xD2},
+    {REG_GAM15, 0xE5}
+
+};
+
+/*Resolution Configuration=======================================*/
+static const OV7670_Reg res_vga[] = {
+    {REG_COM7,           0x00}, // COM7: VGA
+    {REG_COM3,           0x00}, // COM3: SCALING deactivation
+    {REG_HSTART,         0x11}, // HSTART
+    {REG_HSTOP,          0x61}, // HSTOP
+    {REG_VSTART,         0x03}, // VSTART
+    {REG_VSTOP,          0x7B}, // VSTOP
+};
+
+static const OV7670_Reg res_cif[] = {
+    {REG_COM7,           0x20}, // COM7: CIF
+    {REG_COM3,           0x04}, // COM3: 스케일링 활성화
+    {REG_COM14,          0x19}, // COM14: 스케일링 제어
+    {REG_SCALING_XSC,    0x3A}, // SCALING_XSC
+    {REG_SCALING_YSC,    0x35}, // SCALING_YSC
+    {REG_SCALING_DCWCTR, 0x11}, // SCALING_DCWCTR: 2x 다운샘플링
+    {REG_HSTART,         0x11}, // HSTART
+    {REG_HSTOP,          0x61}, // HSTOP
+    {REG_VSTART,         0x03}, // VSTART
+    {REG_VSTOP,          0x7B}, // VSTOP
+};
+
+static const OV7670_Reg res_qvga[] = {
+    {REG_COM7,           0x10}, // COM7: CIF
+    {REG_COM3,           0x04}, // COM3: 스케일링 활성화
+    {REG_COM14,          0x19}, // COM14: 스케일링 제어
+    {REG_SCALING_XSC,    0x3A}, // SCALING_XSC
+    {REG_SCALING_YSC,    0x35}, // SCALING_YSC
+    {REG_SCALING_DCWCTR, 0x11}, // SCALING_DCWCTR: 2x 다운샘플링
+    {REG_HSTART,         0x16}, // HSTART
+    {REG_HSTOP,          0x04}, // HSTOP
+    {REG_VSTART,         0x02}, // VSTART
+    {REG_VSTOP,          0x7A}, // VSTOP
+};
+
+static const OV7670_Reg res_qcif[] = {
+    {REG_COM7,           0x08}, // COM7: CIF
+    {REG_COM3,           0x04}, // COM3: 스케일링 활성화
+    {REG_COM14,          0x1A}, // COM14: 스케일링 제어
+    {REG_SCALING_XSC,    0x3A}, // SCALING_XSC
+    {REG_SCALING_YSC,    0x35}, // SCALING_YSC
+    {REG_SCALING_DCWCTR, 0x22}, // SCALING_DCWCTR: 2x 다운샘플링
+    {REG_HSTART,         0x11}, // HSTART
+    {REG_HSTOP,          0x61}, // HSTOP
+    {REG_VSTART,         0x03}, // VSTART
+    {REG_VSTOP,          0x7B}, // VSTOP
+};
+
+
+
+/*Format configuration===========================================*/
+
+static const OV7670_Reg fmt_rgb565[] = {
+    {REG_COM7,           0x04}, // COM7: RGB
+    {REG_COM15,          0xD0}, // COM15: RGB565
+    {REG_TSLB,           0x0D}, // TSLB: Default setting
+    {REG_RGB444,         0x00}  // RGB444: Deactivation
+};
+
+static const OV7670_Reg fmt_rgb555[] = {
+    {REG_COM7,           0x04}, // COM7: RGB
+    {REG_COM15,          0xF0}, // COM15: RGB555
+    {REG_TSLB,           0x0D}, // TSLB: Default setting
+    {REG_RGB444,         0x00}  // RGB444: Deactivation
+};
+
+static const OV7670_Reg fmt_rgb444[] = {
+    {REG_COM7,           0x04}, // COM7: RGB
+    {REG_COM15,          0xC0}, // COM15: RGB444
+    {REG_TSLB,           0x0D}, // TSLB: Default setting
+    {REG_RGB444,         0x02}  // RGB444: Activation, xRGB
+};
+
+static const OV7670_Reg fmt_yuv422[] = {
+    {REG_COM7,           0x00}, // COM7: YUV
+    {REG_COM15,          0xC0}, // COM15: YUV
+    {REG_TSLB,           0x0D}, // TSLB: UYVY
+    {REG_RGB444,         0x00}  // RGB444: Deactivation
+};
+
+static const OV7670_Reg fmt_raw_rgb[] = {
+    {REG_COM7,           0x01}, // COM7: Raw RGB
+    {REG_COM15,          0xC0}, // COM15: Default setting
+    {REG_TSLB,           0x0D}, // TSLB: Default setting
+    {REG_RGB444,         0x00}  // RGB444: Deactivation
+};
 
 /*===============================================================*/ 
 /*OV7670 Function Prototype Declaration==========================*/
 /*Initializing OV7670============================================*/
-void    OV7670_init(void); 
+void    OV7670_init(OV7670_Resolution res, OV7670_Format fmt);
 /*Reading data in buffer=========================================*/
 void    OV7670_ReadData(uint8_t *buffer, uint32_t length);
 /*Reading Register in OV7670=====================================*/
 uint8_t OV7670_ReadReg(uint8_t reg);
-/*Wrigin value in register in OV7670=============================*/
+/*Applying specific settings=====================================*/
+void    OV7670_ApplySettings(const OV7670_Reg *settings, uint32_t count);
+/*Writing value in register in OV7670=============================*/
 uint8_t OV7670_WriteReg(uint8_t reg, uint8_t value);
 /*Checking if OV7670 connected correctly=========================*/
 uint8_t OV7670_CheckID(void);
-/*Setting video format===========================================*/
-void    OV7670_SetFormat(uint8_t format); 
-/*Serring resolution of Window===================================*/
-void    OV7670_SetResolution(uint8_t res); 
+
+
+
+
+uint8_t test(void);
 
 
